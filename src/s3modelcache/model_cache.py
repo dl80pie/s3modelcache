@@ -22,6 +22,16 @@ logger = logging.getLogger(__name__)
 
 
 class S3ModelCache:
+    """Cache HuggingFace models locally and in an S3-compatible object store.
+
+    The directory used for the *local* cache can be configured in three ways, in
+    order of precedence:
+
+    1. By passing the ``local_cache_dir`` argument explicitly when
+       instantiating :class:`S3ModelCache`.
+    2. By setting the ``MODEL_CACHE_DIR`` environment variable.
+    3. Falling back to the default value ``"./model_cache"``.
+    """
     def __init__(
         self,
         bucket_name: str,
@@ -29,7 +39,7 @@ class S3ModelCache:
         aws_access_key_id: Optional[str] = None,
         aws_secret_access_key: Optional[str] = None,
         region_name: str = "us-east-1",
-        local_cache_dir: str = "./model_cache",
+        local_cache_dir: Optional[str] = None,
         s3_prefix: str = "models/",
         use_ssl: bool = True,
         verify_ssl: bool = True,
@@ -37,7 +47,12 @@ class S3ModelCache:
         self.bucket_name = bucket_name
         self.s3_endpoint = s3_endpoint
         self.s3_prefix = s3_prefix.rstrip("/") + "/"
-        self.local_cache_dir = Path(local_cache_dir)
+        # Resolve the local cache directory with the following precedence:
+        #   1. Explicit `local_cache_dir` argument
+        #   2. Environment variable `MODEL_CACHE_DIR`
+        #   3. Default "./model_cache"
+        _cache_dir = local_cache_dir or os.getenv("MODEL_CACHE_DIR", "./model_cache")
+        self.local_cache_dir = Path(_cache_dir)
         self.local_cache_dir.mkdir(exist_ok=True)
 
         session = boto3.Session(
