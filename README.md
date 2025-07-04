@@ -1,7 +1,7 @@
 # S3ModelCache – Hugging Face ↔️ HCP S3 Bridge
 
-`S3ModelCache` ermöglicht das Herunterladen (oder On-Demand-Herstellen) großer KI-Modelle von der [Hugging Face Hub](https://huggingface.co) und das anschließende Ablegen/Zwischenspeichern in einem HCP-Namespace über dessen S3-kompatible API.  
-Damit können Modelle einmalig in HCP hinterlegt und dann von *vLLM*-Inference-Pods (oder anderen Diensten) direkt aus dem HCP-Storage geladen werden, ohne die Hub-Rate-Limits zu treffen.
+Die Funktion "S3ModelCache" gestattet das Herunterladen (oder On-Demand-Herstellen) umfangreicher KI-Modelle von der Plattform "Hugging Face Hub" (https://huggingface.co) sowie das darauffolgende Ablegen bzw. Zwischenspeichern in einem HCP-Namespace über dessen S3-kompatible API.
+Hierdurch wird die Möglichkeit geschaffen, Modelle in HCP zu hinterlegen und sie anschließend von *vLLM*-Inference-Pods (oder anderen Diensten) direkt aus dem HCP-Storage zu laden, ohne dabei die Hub-Rate-Limits zu überschreiten.
 
 ---
 
