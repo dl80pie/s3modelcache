@@ -12,7 +12,9 @@ from s3modelcache import S3ModelCache
 @pytest.fixture
 def cache(tmp_path):
     """Return a S3ModelCache instance with a temporary local cache dir and mocked s3 client."""
-    c = S3ModelCache(
+    with mock.patch("boto3.Session.client") as mocked_client:
+        mocked_client.return_value = mock.MagicMock()
+        c = S3ModelCache(
         bucket_name="unit-test-bucket",
         s3_endpoint="https://dummy-endpoint",
         aws_access_key_id="key",
@@ -20,9 +22,7 @@ def cache(tmp_path):
         local_cache_dir=str(tmp_path),
         verify_ssl=False,
     )
-    # Replace the real boto3 client with a MagicMock so we don't hit the network
-    c.s3_client = mock.MagicMock()
-    return c
+        return c
 
 
 def test_key_and_path_generation(cache):
