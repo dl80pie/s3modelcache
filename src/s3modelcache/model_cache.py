@@ -31,6 +31,9 @@ class S3ModelCache:
        instantiating :class:`S3ModelCache`.
     2. By setting the ``MODEL_CACHE_DIR`` environment variable.
     3. Falling back to the default value ``"./model_cache"``.
+
+    You can also pass ``root_ca_path`` to specify a custom root CA bundle for
+    HTTPS connections to your S3 endpoint (e.g. when using self-signed certs).
     """
     def __init__(
         self,
@@ -43,6 +46,7 @@ class S3ModelCache:
         s3_prefix: str = "models/",
         use_ssl: bool = True,
         verify_ssl: bool = True,
+        root_ca_path: Optional[str] = None,
     ) -> None:
         self.bucket_name = bucket_name
         self.s3_endpoint = s3_endpoint
@@ -60,11 +64,14 @@ class S3ModelCache:
             aws_secret_access_key=aws_secret_access_key,
             region_name=region_name,
         )
+        # If a custom root CA bundle is provided, use it for SSL verification
+        _verify_param = root_ca_path if root_ca_path else verify_ssl
+
         self.s3_client = session.client(
             "s3",
             endpoint_url=s3_endpoint,
             use_ssl=use_ssl,
-            verify=verify_ssl,
+            verify=_verify_param,
             config=boto3.session.Config(
                 signature_version="s3v4",
                 s3={"addressing_style": "path"},
@@ -173,4 +180,46 @@ class S3ModelCache:
             logger.error("vLLM init failed: %s", exc)
             return None
 
-    # Listing / cleanup helpers are unchanged (omitted for brevity)
+    # ───────────────────────────── Cache utilities ────────────────────────────
+    def list_cached_models(self, source: str = "local") -> list[str]:
+        """Return a list of cached model IDs.
+
+        Parameters
+        ----------
+        source : {"local", "s3"}
+            Where to list the models from. "local" inspects the local cache
+            directory, "s3" queries the configured bucket.
+        """
+        source = source.lower()
+        if source == "local":
+            return [p.name for p in self.local_cache_dir.iterdir() if p.is_dir()]
+        if source == "s3":
+            paginator = self.s3_client.get_paginator("list_objects_v2")
+            models: list[str] = []
+            for page in paginator.paginate(Bucket=self.bucket_name, Prefix=self.s3_prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    if key.endswith(".tar.gz"):
+                        models.append(key[len(self.s3_prefix):-7])  # strip prefix + ext
+            return models
+        raise ValueError("source must be 'local' or 's3'")
+
+    def delete_cached_model(self, model_id: str, *, local: bool = True, s3: bool = False) -> bool:
+        """Delete cached model locally and/or from S3.
+
+        Returns ``True`` if at least one deletion succeeded, ``False`` otherwise.
+        """
+        success = False
+        if local:
+            local_path = self._get_local_path(model_id)
+            if local_path.exists():
+                shutil.rmtree(local_path, ignore_errors=True)
+                success = True
+        if s3:
+            key = self._get_s3_key(model_id)
+            try:
+                self.s3_client.delete_object(Bucket=self.bucket_name, Key=key)
+                success = True
+            except ClientError as exc:
+                logger.error("Failed to delete %s from S3: %s", key, exc)
+        return success

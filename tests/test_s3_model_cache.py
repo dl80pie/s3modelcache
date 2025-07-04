@@ -76,3 +76,66 @@ def test_upload_download_calls(cache):
         # Call download; should trigger s3_client.download_file
         cache._download_from_s3("some/key", dummy_tar)
         cache.s3_client.download_file.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# New tests for listing and deleting cached models
+# ---------------------------------------------------------------------------
+
+def test_list_cached_models_local(cache):
+    # create two dummy cached models
+    (cache._get_local_path("a/model")).mkdir(parents=True)
+    (cache._get_local_path("b/model")).mkdir(parents=True)
+
+    listed = set(cache.list_cached_models())
+    assert listed == {"a_model", "b_model"}
+
+
+def test_list_cached_models_s3(cache):
+    paginator = mock.MagicMock()
+    cache.s3_client.get_paginator.return_value = paginator
+    paginator.paginate.return_value = [
+        {"Contents": [{"Key": f"{cache.s3_prefix}a_model.tar.gz"}]},
+        {"Contents": [{"Key": f"{cache.s3_prefix}b_model.tar.gz"}]},
+    ]
+
+    listed = set(cache.list_cached_models("s3"))
+    assert listed == {"a_model", "b_model"}
+
+
+def test_delete_cached_model_local(cache):
+    model_id = "delete/local"
+    path = cache._get_local_path(model_id)
+    path.mkdir(parents=True)
+    assert path.exists()
+
+    assert cache.delete_cached_model(model_id)
+    assert not path.exists()
+
+
+def test_delete_cached_model_s3(cache):
+    cache.s3_client.delete_object.reset_mock()
+    model_id = "delete/s3"
+
+    success = cache.delete_cached_model(model_id, local=False, s3=True)
+    assert success is True
+    cache.s3_client.delete_object.assert_called_once()
+
+
+def test_root_ca_path(tmp_path):
+    ca_path = "/tmp/ca.pem"
+    with mock.patch("boto3.Session.client") as mocked_client:
+        mocked_client.return_value = mock.MagicMock()
+        _ = S3ModelCache(
+            bucket_name="bucket",
+            s3_endpoint="https://ep",
+            aws_access_key_id="k",
+            aws_secret_access_key="s",
+            root_ca_path=ca_path,
+            local_cache_dir=str(tmp_path),
+        )
+        # ensure verify param equals path
+        mocked_client.assert_called_once()
+        _, kwargs = mocked_client.call_args
+        assert kwargs["verify"] == ca_path
+

@@ -50,6 +50,8 @@ S3_ENDPOINT="https://your-s3-endpoint.com"
 S3_ACCESS_KEY_ID="your-s3-access-key"
 S3_SECRET_ACCESS_KEY="your-s3-secret-key"
 S3_BUCKET="my-model-bucket"
+# Optional: überschreibt den Standardpfad ./model_cache
+MODEL_CACHE_DIR="/mnt/cache/models"
 ```
 
 ## Schnellstart
@@ -76,6 +78,8 @@ print(f"Modell liegt lokal unter: {local_path}")
 | `download_from_hf(repo_id)`     | Nutzt `huggingface_hub.snapshot_download` um Artefakte abzurufen. |
 | `upload_to_s3(folder)`          | Lädt ein gesamtes Verzeichnis rekursiv in den definierten Bucket/Prefix hoch. |
 | `download_from_s3(repo_id)`     | Holt Artefakte aus HCP zurück in den lokalen Cache. |
+| `list_cached_models(source)`    | Listet alle im lokalen Cache **oder** im S3-Bucket vorhandenen Modelle. |
+| `delete_cached_model(id, ...)`  | Löscht ein Modell wahlweise lokal, in S3 oder in beiden Caches. |
 
 ## Erweiterungen
 
@@ -110,8 +114,33 @@ success = upload_large_model_to_hcp(cache, "mistral-7b-instruct", chunk_size=500
 print("Upload ok" if success else "Upload failed")
 ```
 
+## Root-CA mit OpenSSL exportieren
+Wenn dein S3-Endpoint ein selbstsigniertes Zertifikat nutzt, kannst du das Root-CA
+mit OpenSSL aus der TLS-Kette extrahieren und anschließend per
+`root_ca_path` an *S3ModelCache* übergeben:
+
+```bash
+# Beispiel: Zertifikat von https://s3.my-hcp.local extrahieren
+openssl s_client -showcerts -connect s3.my-hcp.local:443 </dev/null \
+  | openssl x509 -outform PEM -out root-ca.pem
+
+# Optional: mehrere Zertifikate extrahieren (wenn Kette >1)
+# und in eine Bundle-Datei zusammenführen.
+```
+
+Verwende anschließend:
+
+```python
+cache = S3ModelCache(
+    ...,
+    root_ca_path="/path/to/root-ca.pem",
+)
+```
+
+---
+
 ## Tipps & Tricks
-* **SSL Zertifikat:** Bei selbstsignierten HCP-Zertifikaten kann `verify_ssl=False` übergeben oder das Root-CA-Bundle gemountet werden.
+* **SSL Zertifikat:** Bei selbstsignierten HCP-Zertifikaten kann entweder `verify_ssl=False` gesetzt **oder** ein eigenes Root-CA-Bundle per Parameter `root_ca_path="/path/to/ca.pem"` übergeben werden.
 * **Versionierung:** Nutze den `s3_prefix`-Parameter, um verschiedene Modellversionen getrennt abzulegen, z. B. `models/v1/`.
 * **Große Modelle (>5 GB):** HCP unterstützt *Multipart Uploads* – `boto3` erledigt das automatisch.
 

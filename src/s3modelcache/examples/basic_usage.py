@@ -48,12 +48,24 @@ success = cache.cache_model_to_s3(MODEL_ID)
 print("Upload done" if success else "Upload failed")
 
 # ---------------------------------------------------------------------------
-# 4. Multipart upload example for very large models (>5 GB)
+# 4. Inspect cache contents
+# ---------------------------------------------------------------------------
+print("Local cache contains:", cache.list_cached_models())
+print("S3 contains:", cache.list_cached_models("s3"))
+
+# ---------------------------------------------------------------------------
+# 5. (Optional) Delete model from local cache
+# ---------------------------------------------------------------------------
+# cache.delete_cached_model(MODEL_ID, local=True, s3=False)
+# print("Local copy removed.")
+
+# ---------------------------------------------------------------------------
+# 6. Multipart upload example for very large models (>5 GB)
 # ---------------------------------------------------------------------------
 # upload_large_model_to_hcp(cache, MODEL_ID, chunk_size=500*1024*1024)
 
 # ---------------------------------------------------------------------------
-# 5. Load with vLLM (optional)
+# 7. Load with vLLM (optional)
 # ---------------------------------------------------------------------------
 # llm = cache.load_with_vllm(MODEL_ID, gpu_memory_utilization=0.9)
 # print("LLM ready ->", llm)
