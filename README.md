@@ -1,1 +1,120 @@
-initial
+# S3ModelCache – Hugging Face ↔️ HCP S3 Bridge
+
+`S3ModelCache` ermöglicht das Herunterladen (oder On-Demand-Herstellen) großer KI-Modelle von der [Hugging Face Hub](https://huggingface.co) und das anschließende Ablegen/Zwischenspeichern in einem HCP-Namespace über dessen S3-kompatible API.  
+Damit können Modelle einmalig in HCP hinterlegt und dann von *vLLM*-Inference-Pods (oder anderen Diensten) direkt aus dem HCP-Storage geladen werden, ohne die Hub-Rate-Limits zu treffen.
+
+---
+
+## Verzeichnisstruktur (klassisches `src/`-Layout)
+```
+├── src/
+│   └── s3modelcache/
+│       ├── __init__.py          # Public API
+│       ├── model_cache.py       # S3ModelCache Implementierung
+│       ├── logger.py            # HCPLogger / LoggedHCPCache
+│       └── upload_large.py      # Multipart-Upload Helper (optional)
+├── tests/                       # PyTest-Suite
+├── requirements.txt
+├── .env                         # Zugangsdaten + Endpunkte
+└── README.md
+```
+
+## Voraussetzungen
+* Python ≥ 3.10
+* Abhängigkeiten aus `requirements.txt`:
+  * `boto3`  (Zugriff auf HCP-S3)
+  * `huggingface_hub`  (Modelldownload)
+  * `vllm`  (optionales Laden & Prüfen der Modelle)
+  * `botocore`
+
+Installieren:
+```bash
+pip install -r requirements.txt
+```
+
+## Tests
+Die Unittests befinden sich im Verzeichnis `tests/` und werden mit `pytest` ausgeführt:
+
+```bash
+python -m pytest -q          # alle Tests ausführen
+# oder mit Coverage-Bericht
+pytest --cov=s3modelcache --cov-report=term-missing
+```
+
+
+## Konfiguration
+Die Verbindung zu einem beliebigen S3-kompatiblen Storage (z. B. HCP, MinIO, Ceph) erfolgt über Umgebungsvariablen oder eine `.env`-Datei (siehe Beispiel):
+
+```env
+S3_ENDPOINT="https://your-s3-endpoint.com"
+S3_ACCESS_KEY_ID="your-s3-access-key"
+S3_SECRET_ACCESS_KEY="your-s3-secret-key"
+S3_BUCKET="my-model-bucket"
+```
+
+## Schnellstart
+```python
+from s3modelcache import S3ModelCache
+
+# Cache-Objekt initialisieren
+cache = S3ModelCache(
+    bucket_name="my-model-bucket",
+    s3_endpoint="https://s3.your-cloud.com",
+    aws_access_key_id=os.getenv("S3_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("S3_SECRET_ACCESS_KEY"),
+)
+
+# Modell in den Cache holen (lädt von HF falls nicht vorhanden)
+local_path = cache.get_or_download("meta-llama/Llama-3-8B-Instruct")
+print(f"Modell liegt lokal unter: {local_path}")
+```
+
+## API-Referenz (Auszug)
+| Methode                         | Beschreibung |
+|---------------------------------|--------------|
+| `get_or_download(repo_id)`      | Prüft, ob das Modell bereits im HCP-Bucket liegt. Falls nicht: download von HF → Upload nach HCP. Gibt lokalen Pfad zurück. |
+| `download_from_hf(repo_id)`     | Nutzt `huggingface_hub.snapshot_download` um Artefakte abzurufen. |
+| `upload_to_s3(folder)`          | Lädt ein gesamtes Verzeichnis rekursiv in den definierten Bucket/Prefix hoch. |
+| `download_from_s3(repo_id)`     | Holt Artefakte aus HCP zurück in den lokalen Cache. |
+
+## Erweiterungen
+
+### HCPLogger – zentrales Logging
+`HCPLogger.py` erweitert den Cache um strukturierte Log-Ausgaben (Datei **hcp_model_cache.log** + Console).  Nutze die Klasse `LoggedHCPCache`, die von `S3ModelCache` erbt und nach jedem Upload/Download automatisch einen Log-Eintrag schreibt.
+
+```python
+from s3modelcache.logger import LoggedHCPCache
+
+cache = LoggedHCPCache(
+    bucket_name="my-model-bucket",
+    s3_endpoint=os.getenv("S3_ENDPOINT"),
+    aws_access_key_id=os.getenv("S3_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("S3_SECRET_ACCESS_KEY"),
+)
+
+# Modell cachen + Logging
+cache.cache_model_to_s3("meta-llama/Llama-3-8B-Instruct")
+```
+
+### UploadLargeModel – Multipart-Upload
+`UploadLargeModel.py` zeigt, wie sehr große Modelle (>5 GB) in mehreren Chunks parallel zu S3/HCP hochgeladen werden.  Der Helfer nutzt `boto3`-Multipart-Upload mit anpassbarer Chunk-Größe.
+
+```python
+from s3modelcache.upload_large import upload_large_model_to_hcp
+from s3modelcache import S3ModelCache
+
+cache = S3ModelCache(...)
+
+# 500 MB-Chunks für schnelleren Upload
+success = upload_large_model_to_hcp(cache, "mistral-7b-instruct", chunk_size=500*1024*1024)
+print("Upload ok" if success else "Upload failed")
+```
+
+## Tipps & Tricks
+* **SSL Zertifikat:** Bei selbstsignierten HCP-Zertifikaten kann `verify_ssl=False` übergeben oder das Root-CA-Bundle gemountet werden.
+* **Versionierung:** Nutze den `s3_prefix`-Parameter, um verschiedene Modellversionen getrennt abzulegen, z. B. `models/v1/`.
+* **Große Modelle (>5 GB):** HCP unterstützt *Multipart Uploads* – `boto3` erledigt das automatisch.
+
+---
+
+© 2025  Your Name / Company – MIT License

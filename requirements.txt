@@ -1,0 +1,21 @@
+# Packages required for S3ModelCache and helper scripts
+# Versions pinned to recent, stable releases that are widely tested.
+
+boto3==1.34.85
+# botocore is a boto3 dependency but we pin it explicitly for reproducibility
+botocore>=1.34,<2.0
+
+# Hugging Face Hub client for snapshot_download
+huggingface_hub>=0.23,<1.0
+# Transformers optional but often used together with HF models
+transformers>=4.41,<5.0
+
+# PyTorch – vLLM requires torch. Replace with cpu-only build if running on CPU-only nodes
+torch>=2.3,<3.0
+
+# vLLM for efficient inference / integrity checks (optional but referenced)
+vllm>=0.4.0,<1.0
+
+# Utility for loading .env files during local development
+python-dotenv==1.0.1
+pytest==8.2.0
