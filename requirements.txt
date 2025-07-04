@@ -19,3 +19,4 @@ vllm>=0.4.0,<1.0
 # Utility for loading .env files during local development
 python-dotenv==1.0.1
 pytest==8.2.0
+pytest-cov==4.1.0    # Coverage-Plugin für pytest
