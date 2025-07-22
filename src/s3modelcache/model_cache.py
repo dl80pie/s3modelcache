@@ -15,7 +15,11 @@ from typing import Optional
 import boto3
 from botocore.exceptions import ClientError
 from huggingface_hub import snapshot_download
-from vllm import LLM
+
+try:
+    from vllm import LLM
+except ImportError:
+    LLM = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -93,14 +97,49 @@ class S3ModelCache:
         return self.local_cache_dir / model_id.replace("/", "_")
 
     def _compress_model(self, model_path: Path, archive_path: Path) -> None:
+        """Compress model directory to tar.gz with memory-efficient streaming.
+        
+        This method processes files one by one to avoid loading large models
+        entirely into memory, preventing crashes with multi-GB models.
+        """
         logger.info("Compressing %s -> %s", model_path, archive_path)
+        
         with tarfile.open(archive_path, "w:gz") as tar:
-            tar.add(model_path, arcname=model_path.name)
+            # Add files one by one to control memory usage
+            for file_path in model_path.rglob("*"):
+                if file_path.is_file():
+                    # Calculate the archive name (relative path within the model)
+                    arcname = model_path.name / file_path.relative_to(model_path)
+                    
+                    # Add file with streaming to avoid loading entire file into memory
+                    tar.add(file_path, arcname=str(arcname))
+                    
+                    # Log progress for large operations
+                    if file_path.stat().st_size > 100 * 1024 * 1024:  # > 100MB
+                        logger.info("Added large file: %s (%.1f MB)", 
+                                  file_path.name, file_path.stat().st_size / (1024*1024))
 
     def _extract_model(self, archive_path: Path, extract_dir: Path) -> None:
+        """Extract model archive with memory-efficient streaming.
+        
+        This method extracts files one by one to avoid memory issues
+        with large model archives.
+        """
         logger.info("Extracting %s -> %s", archive_path, extract_dir)
+        
         with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(extract_dir.parent)
+            # Extract files one by one for better memory control
+            for member in tar.getmembers():
+                if member.isfile():
+                    # Log progress for large files
+                    if member.size > 100 * 1024 * 1024:  # > 100MB
+                        logger.info("Extracting large file: %s (%.1f MB)", 
+                                  member.name, member.size / (1024*1024))
+                    
+                    tar.extract(member, extract_dir.parent)
+                elif member.isdir():
+                    # Create directories
+                    tar.extract(member, extract_dir.parent)
 
     def _upload_to_s3(self, local_file: Path, s3_key: str) -> bool:
         try:
@@ -171,6 +210,10 @@ class S3ModelCache:
         return local_model_path
 
     def load_with_vllm(self, model_id: str, **vllm_kwargs):
+        if LLM is None:
+            logger.error("vLLM is not installed. Install it with: pip install vllm")
+            return None
+            
         model_path = self.load_model_from_s3(model_id)
         if model_path is None:
             return None
