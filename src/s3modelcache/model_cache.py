@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class S3ModelCache:
-    """Cache HuggingFace models locally and in an S3-compatible object store.
+    """Cache HuggingFace models locally and in an S3-compatible object store.Hall
 
     The directory used for the *local* cache can be configured in three ways, in
     order of precedence:
