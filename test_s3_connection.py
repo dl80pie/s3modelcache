@@ -33,6 +33,8 @@ def test_s3_connection():
     access_key = os.getenv("HCP_ACCESS_KEY") or os.getenv("S3_ACCESS_KEY_ID")
     secret_key = os.getenv("HCP_SECRET_KEY") or os.getenv("S3_SECRET_ACCESS_KEY")
     bucket = os.getenv("HCP_NAMESPACE") or os.getenv("S3_BUCKET")
+    verify_ssl = os.getenv("VERIFY_SSL", "true").lower() == "true"
+    root_ca_path = os.getenv("ROOT_CA_PATH")
     
     if not all([endpoint, access_key, secret_key, bucket]):
         print("❌ Missing required environment variables:")
@@ -43,6 +45,9 @@ def test_s3_connection():
     print(f"📍 Endpoint: {endpoint}")
     print(f"🪣 Bucket: {bucket}")
     print(f"🔑 Access Key: {access_key[:10]}..." if len(access_key) > 10 else f"🔑 Access Key: {access_key}")
+    print(f"🔒 SSL Verification: {'Enabled' if verify_ssl else 'Disabled'}")
+    if root_ca_path:
+        print(f"📜 Custom CA Path: {root_ca_path}")
     
     try:
         # Test 1: Create S3ModelCache instance
@@ -52,18 +57,26 @@ def test_s3_connection():
             s3_endpoint=endpoint,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            verify_ssl=True
+            verify_ssl=verify_ssl,
+            root_ca_path=root_ca_path
         )
         print("✅ S3ModelCache instance created successfully")
         
         # Test 2: Direct boto3 connection test
         print("\n2️⃣ Testing direct boto3 connection...")
+        
+        # Configure SSL verification for boto3
+        verify_config = verify_ssl
+        if root_ca_path and verify_ssl:
+            verify_config = root_ca_path
+        
         s3_client = boto3.client(
             's3',
             endpoint_url=endpoint,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            region_name='us-east-1'
+            region_name='us-east-1',
+            verify=verify_config
         )
         
         # Test bucket existence

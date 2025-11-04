@@ -26,19 +26,29 @@ def quick_s3_test():
     access_key = os.getenv("HCP_ACCESS_KEY") or os.getenv("S3_ACCESS_KEY_ID")
     secret_key = os.getenv("HCP_SECRET_KEY") or os.getenv("S3_SECRET_ACCESS_KEY")
     bucket = os.getenv("HCP_NAMESPACE") or os.getenv("S3_BUCKET")
+    verify_ssl = os.getenv("VERIFY_SSL", "true").lower() == "true"
+    root_ca_path = os.getenv("ROOT_CA_PATH")
     
     if not all([endpoint, access_key, secret_key, bucket]):
         print("❌ Missing configuration in .env file")
         return False
     
+    print(f"🔒 SSL Verification: {'Enabled' if verify_ssl else 'Disabled'}")
+    
     try:
+        # Configure SSL verification
+        verify_config = verify_ssl
+        if root_ca_path and verify_ssl:
+            verify_config = root_ca_path
+        
         # Create S3 client
         s3 = boto3.client(
             's3',
             endpoint_url=endpoint,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            region_name='us-east-1'
+            region_name='us-east-1',
+            verify=verify_config
         )
         
         # Test bucket access
