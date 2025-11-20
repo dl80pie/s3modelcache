@@ -1,6 +1,14 @@
 import os
 import sys
 
+# Ensure that the local src/ directory (which contains the s3modelcache package)
+# is on the Python import path. This works both locally (repo root) and
+# in the container, where /app/src sits next to cache_model.py.
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(CURRENT_DIR, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
 from s3modelcache import S3ModelCache
 
 
