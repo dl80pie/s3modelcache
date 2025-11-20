@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-inference
+  namespace: default
+  labels:
+    app: my-inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-inference
+  template:
+    metadata:
+      labels:
+        app: my-inference
+    spec:
+      initContainers:
+        - name: model-cache-init
+          image: your-registry/s3modelcache-init:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MODEL_ID
+              value: "meta-llama/Llama-3-8B-Instruct"
+            - name: S3_ENDPOINT
+              value: "https://s3.your-hcp-endpoint.com"
+            - name: S3_BUCKET
+              value: "my-model-bucket"
+            - name: S3_REGION
+              value: "us-east-1"
+            - name: S3_PREFIX
+              value: "models/v1/"
+            - name: S3_VERIFY_SSL
+              value: "true"
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access_key
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret_key
+            - name: HUGGINGFACE_HUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hf-token
+                  key: token
+      containers:
+        - name: app
+          image: your-registry/vllm-or-other-consumer:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.your-hcp-endpoint.com"
+            - name: S3_BUCKET
+              value: "my-model-bucket"
+          ports:
+            - containerPort: 8000
