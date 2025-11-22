@@ -1,0 +1,146 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: vllm-inferenceall
+  labels:
+    app: vllm-openai
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: vllm-openai
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: vllm-openai
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.count: '3'
+        nvidia.com/gpu.product: NVIDIA-L40S-48C
+      restartPolicy: Always
+      initContainers:
+        - resources: {}
+          terminationMessagePath: /dev/termination-log
+          name: model-downloader
+          command:
+            - /bin/sh
+            - '-c'
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: hcp-s3-credentials
+                  key: S3_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hcp-s3-credentials
+                  key: S3_SECRET_ACCESS_KEY
+            - name: AWS_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hcp-s3-credentials
+                  key: S3_ENDPOINT
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: model-cache
+              mountPath: /data
+          terminationMessagePolicy: File
+          image: 'amazon/aws-cli:latest'
+          args:
+            - |
+              echo "Starte Download..."; aws s3 sync s3://kira-models/models/openai_gpt-oss-120b /data/models/openai_gpt-oss-120b --endpoint-url=$AWS_ENDPOINT_URL --no-verify-ssl;
+      imagePullSecrets:
+        - name: craas-1d-itz-ai-service-hu
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+      securityContext: {}
+      containers:
+        - resources:
+            limits:
+              nvidia.com/gpu: '2'
+            requests:
+              cpu: '8'
+              memory: 32Gi
+              nvidia.com/gpu: '2'
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 60
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          terminationMessagePath: /dev/termination-log
+          name: vllm
+          command:
+            - python3
+            - '-m'
+            - vllm.entrypoints.openai.api_server
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 120
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          env:
+            - name: HOME
+              value: /data
+            - name: HF_HOME
+              value: /data/huggingface
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: hcp-s3-credentials
+                  key: S3_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hcp-s3-credentials
+                  key: S3_SECRET_ACCESS_KEY
+            - name: AWS_ENDPOINT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hcp-s3-credentials
+                  key: S3_ENDPOINT
+          securityContext: {}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: dshm
+              mountPath: /dev/shm
+            - name: model-cache
+              mountPath: /data
+          terminationMessagePolicy: File
+          image: ' registry.redhat.io/rhaiis/vllm-cuda-rhel9:latest'
+          args:
+            - '--model'
+            - openai/gpt-oss-120b
+            - '--tensor-parallel-size'
+            - '2'
+            - '--trust-remote-code'
+            - '--port'
+            - '8000'
+            - '--gpu-memory-utilization'
+            - '0.85'
+            - '--download-dir'
+            - /data/models
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 4Gi
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: vllm-model-cache
+      dnsPolicy: ClusterFirst
