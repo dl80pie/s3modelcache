@@ -1,16 +1,11 @@
 FROM registry.access.redhat.com/ubi9/python-311
 
-RUN microdnf install -y \
-    git \
-    ca-certificates \
-  && microdnf clean all
-
 WORKDIR /app
 
-COPY src/ ./src/
+COPY app/ ./
 COPY requirements.txt ./
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install uv && uv pip install --no-cache-dir -r requirements.txt
 
 COPY cache_model.py .
 
