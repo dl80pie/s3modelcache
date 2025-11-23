@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: busybox-modelcache
+  namespace: default
+  labels:
+    app: busybox-modelcache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: busybox-modelcache
+  template:
+    metadata:
+      labels:
+        app: busybox-modelcache
+    spec:
+      containers:
+        - name: busybox
+          image: busybox
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "sleep 3600"]
+          volumeMounts:
+            - name: model-cache
+              mountPath: /cache
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: model-cache-pvc
