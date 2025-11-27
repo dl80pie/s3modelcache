@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox1
+  labels:
+    app: busybox1
+spec:
+  volumes:
+    - name: model-cache
+      persistentVolumeClaim:
+        claimName: model-cache-pvc
+  containers:
+  - image: busybox
+    command:
+      - sleep
+      - "3600"
+    imagePullPolicy: IfNotPresent
+    name: busybox
+    volumeMounts:
+      - name: model-cache
+        mountPath: /cache
+  restartPolicy: Always
