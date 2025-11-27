@@ -9,8 +9,9 @@ COPY requirements.txt ./
 COPY requirements.dev.txt ./
 
 ARG INSTALL_DEV=false
-RUN python -m venv /opt/venv \
- && . /opt/venv/bin/activate \
+# Create the virtualenv in /tmp (writable for non-root) to avoid permission issues
+RUN python -m venv /tmp/venv \
+ && . /tmp/venv/bin/activate \
  && pip install --no-cache-dir -r requirements.txt \
  && if [ "$INSTALL_DEV" = "true" ]; then pip install --no-cache-dir -r requirements.dev.txt; fi
 
@@ -22,11 +23,11 @@ FROM registry.access.redhat.com/ubi9/python-311 AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     MODEL_CACHE_DIR=/tmp/model_cache \
-    PATH="/opt/venv/bin:${PATH}"
+    PATH="/app/.venv/bin:${PATH}"
 
 WORKDIR /app
 
-COPY --from=builder /opt/venv /opt/venv
+COPY --from=builder /tmp/venv /app/.venv
 COPY ./app /app
 
 CMD ["python", "cache_model.py"]
