@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: my-inference-mc
+  name: vllm-inference
   namespace: default
   labels:
     app: my-inference
@@ -70,12 +70,48 @@ spec:
             - name: model-cache
               mountPath: /cache
       containers:
-        - name: app
-          image: busybox
-          command:
-            - sleep
-            - "3600"
+        - name: vllm
+          image: 'registry.redhat.io/rhaiis/vllm-cuda-rhel9:latest'
           imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              nvidia.com/gpu: '2'
+            requests:
+              cpu: '8'
+              memory: 32Gi
+              nvidia.com/gpu: '2'
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              python3 -m vllm.entrypoints.openai.api_server ${VLLM_ARGS}
+          env:
+            - name: VLLM_ARGS
+              valueFrom:
+                configMapKeyRef:
+                  name: vllm-config
+                  key: vllm-args
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 60
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 120
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
           volumeMounts:
             - name: model-cache
               mountPath: /cache

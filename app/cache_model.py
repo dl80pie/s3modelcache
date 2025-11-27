@@ -10,15 +10,15 @@ def main() -> int:
         print("ERROR: env MODEL_ID not set", file=sys.stderr)
         return 1
 
-    bucket = os.getenv("S3_BUCKET")
-    endpoint = os.getenv("S3_ENDPOINT")
-    access_key = os.getenv("S3_ACCESS_KEY_ID")
-    secret_key = os.getenv("S3_SECRET_ACCESS_KEY")
-    region = os.getenv("S3_REGION", "us-east-1")
-    s3_prefix = os.getenv("S3_PREFIX", "models/")
-    verify_ssl = os.getenv("S3_VERIFY_SSL", "true").lower() == "true"
-    root_ca_path = os.getenv("S3_ROOT_CA_PATH") or None
-    store_as_archive = os.getenv("S3_STORE_AS_ARCHIVE", "true").lower() == "true"
+    bucket = os.getenv("HCP_NAMESPACE") or os.getenv("S3_BUCKET")
+    endpoint = os.getenv("HCP_ENDPOINT") or os.getenv("S3_ENDPOINT")
+    access_key = os.getenv("HCP_ACCESS_KEY") or os.getenv("S3_ACCESS_KEY_ID")
+    secret_key = os.getenv("HCP_SECRET_KEY") or os.getenv("S3_SECRET_ACCESS_KEY")
+    region = os.getenv("HCP_REGION") or os.getenv("S3_REGION", "us-east-1")
+    s3_prefix = os.getenv("HCP_PREFIX") or os.getenv("S3_PREFIX", "models/")
+    verify_ssl = (os.getenv("HCP_VERIFY_SSL") or os.getenv("S3_VERIFY_SSL", "true")).lower() == "true"
+    root_ca_path = os.getenv("HCP_ROOT_CA_PATH") or os.getenv("S3_ROOT_CA_PATH") or None
+    store_as_archive = (os.getenv("HCP_STORE_AS_ARCHIVE") or os.getenv("S3_STORE_AS_ARCHIVE", "true")).lower() == "true"
 
     if not bucket or not endpoint or not access_key or not secret_key:
         print(
@@ -28,6 +28,9 @@ def main() -> int:
         )
         return 1
 
+    # Derive SSL usage from endpoint scheme if possible
+    use_ssl = not endpoint.lower().startswith("http://")
+
     cache = S3ModelCache(
         bucket_name=bucket,
         s3_endpoint=endpoint,
@@ -35,6 +38,7 @@ def main() -> int:
         aws_secret_access_key=secret_key,
         region_name=region,
         s3_prefix=s3_prefix,
+        use_ssl=use_ssl,
         verify_ssl=verify_ssl,
         root_ca_path=root_ca_path,
         store_as_archive=store_as_archive,

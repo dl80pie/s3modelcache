@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-client-modelcache
+  namespace: default
+  labels:
+    app: aws-client-modelcache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aws-client-modelcache
+  template:
+    metadata:
+      labels:
+        app: aws-client-modelcache
+    spec:
+      initContainers:
+        - name: model-downloader
+          image: amazon/aws-cli:latest
+          imagePullPolicy: Always
+          env:
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: endpoint
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: bucket
+            - name: S3_PREFIX
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: prefix
+            - name: S3_VERIFY_SSL
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: verify_ssl
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access_key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret_key
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              echo "Starte Download aus S3...";
+              SSL_FLAG="";
+              if [ "${S3_VERIFY_SSL}" = "false" ]; then
+                SSL_FLAG="--no-verify-ssl";
+              fi;
+              # Sync den gesamten Prefix in das PVC unter /cache/models
+              aws s3 sync "s3://${S3_BUCKET}/${S3_PREFIX}" /cache/models \
+                --endpoint-url="${S3_ENDPOINT}" ${SSL_FLAG};
+          volumeMounts:
+            - name: model-cache
+              mountPath: /cache
+      containers:
+        - name: busybox
+          image: busybox:latest
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "sleep 3600"]
+          # Container macht nichts, hält nur das PVC gemountet
+          volumeMounts:
+            - name: model-cache
+              mountPath: /cache
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: model-cache-pvc
