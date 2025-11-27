@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3modelcache-proxy
+  namespace: default
+  labels:
+    app: s3modelcache-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: s3modelcache-proxy
+  template:
+    metadata:
+      labels:
+        app: s3modelcache-proxy
+    spec:
+      containers:
+        - name: s3cache
+          image: s3modelcache:mini
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MODEL_ID
+              value: "microsoft/Phi-3-mini-4k-instruct"
+            - name: HCP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: endpoint
+            - name: HCP_NAMESPACE
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: bucket
+            - name: HCP_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: region
+            - name: HCP_PREFIX
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: prefix
+            - name: HCP_VERIFY_SSL
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: verify_ssl
+            - name: HCP_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access_key
+            - name: HCP_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret_key
+            - name: HTTP_PROXY
+              valueFrom:
+                configMapKeyRef:
+                  name: proxy-config
+                  key: http_proxy
+            - name: HTTPS_PROXY
+              valueFrom:
+                configMapKeyRef:
+                  name: proxy-config
+                  key: https_proxy
+            - name: NO_PROXY
+              valueFrom:
+                configMapKeyRef:
+                  name: proxy-config
+                  key: no_proxy
+            - name: REQUESTS_CA_BUNDLE
+              value: "/etc/ssl/certs/proxy-ca.pem"
+            - name: AWS_CA_BUNDLE
+              value: "/etc/ssl/certs/proxy-ca.pem"
+          volumeMounts:
+            - name: model-cache
+              mountPath: /tmp/model_cache
+            - name: proxy-ca
+              mountPath: /etc/ssl/certs/proxy-ca.pem
+              subPath: proxy-ca.pem
+              readOnly: true
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: model-cache-pvc
+        - name: proxy-ca
+          secret:
+            secretName: proxy-ca
+      restartPolicy: Always

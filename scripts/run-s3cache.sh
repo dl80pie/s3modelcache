@@ -112,6 +112,11 @@ echo "[info] S3_VERIFY_SSL=${S3_VERIFY_SSL}"
 if [[ -n "${S3_ROOT_CA_PATH:-}" ]]; then
   echo "[info] S3_ROOT_CA_PATH=${S3_ROOT_CA_PATH}"
 fi
+# Map Root-CA to common TLS envs for requests/boto3 if not already set
+if [[ -n "${S3_ROOT_CA_PATH:-}" ]]; then
+  export REQUESTS_CA_BUNDLE="${REQUESTS_CA_BUNDLE:-${S3_ROOT_CA_PATH}}"
+  export AWS_CA_BUNDLE="${AWS_CA_BUNDLE:-${S3_ROOT_CA_PATH}}"
+fi
 if [[ -n "${HTTP_PROXY:-}${http_proxy:-}" || -n "${HTTPS_PROXY:-}${https_proxy:-}" ]]; then
   echo "[info] Proxy erkannt (HTTP_PROXY/HTTPS_PROXY)"
 fi

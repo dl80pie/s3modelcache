@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: proxy-config
+  namespace: default
+data:
+  http_proxy: "http://proxy.local:3128"
+  https_proxy: "http://proxy.local:3128"
+  no_proxy: "localhost,127.0.0.1,.svc,.cluster.local"
