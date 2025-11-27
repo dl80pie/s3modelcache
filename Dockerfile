@@ -32,8 +32,9 @@ ENV http_proxy=$http_proxy \
 # Create the virtualenv in /tmp (writable for non-root) to avoid permission issues
 RUN python -m venv /tmp/venv \
  && . /tmp/venv/bin/activate \
- && pip install --no-cache-dir -r requirements.txt \
- && if [ "$INSTALL_DEV" = "true" ]; then pip install --no-cache-dir -r requirements.dev.txt; fi
+ && python -m pip install --upgrade pip setuptools wheel \
+ && python -m pip install --no-cache-dir -r requirements.txt \
+ && if [ "$INSTALL_DEV" = "true" ]; then python -m pip install --no-cache-dir -r requirements.dev.txt; fi
 
 ##########
 # Runtime stage: copy only the venv and app sources
@@ -69,4 +70,4 @@ WORKDIR /app
 COPY --from=builder /tmp/venv /app/.venv
 COPY ./app /app
 
-CMD ["python", "cache_model.py"]
+CMD ["/app/.venv/bin/python", "cache_model.py"]
