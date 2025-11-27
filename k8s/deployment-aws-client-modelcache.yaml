@@ -67,9 +67,10 @@ spec:
             - name: model-cache
               mountPath: /cache
       containers:
-        - name: pause
-          image: gcr.io/google-containers/pause:3.9
+        - name: busybox
+          image: busybox:latest
           imagePullPolicy: IfNotPresent
+          command: ["sh", "-c", "sleep 3600"]
           # Container macht nichts, hält nur das PVC gemountet
           volumeMounts:
             - name: model-cache

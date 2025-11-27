@@ -139,6 +139,58 @@ cache = S3ModelCache(
 
 ---
 
+## HCP-Integration (Hitachi Content Platform)
+
+Diese Codebasis unterstützt HCP-Namespaces direkt via `HCP_*` Umgebungsvariablen. Falls stattdessen `S3_*` gesetzt ist, greifen Fallbacks – bestehende Setups bleiben kompatibel.
+
+- **Pflicht**
+  - `HCP_NAMESPACE` – Ziel-Namespace (wie Bucket-Name)
+  - `HCP_ENDPOINT` – z. B. `https://s3.hcp.example.com`
+  - `HCP_ACCESS_KEY`, `HCP_SECRET_KEY`
+- **Optional**
+  - `HCP_REGION` – Default `us-east-1`
+  - `HCP_PREFIX` – Default `models/`
+  - `HCP_VERIFY_SSL` – `true|false`, Default `true`
+  - `HCP_ROOT_CA_PATH` – Pfad zu eigenem CA-Bundle (bei Self-Signed)
+  - `HCP_STORE_AS_ARCHIVE` – `true|false`, Default `true` (ein TAR.GZ vs. Verzeichnisbaum)
+
+### .env Beispiel (HCP)
+
+```env
+MODEL_ID="microsoft/Phi-3-mini-4k-instruct"
+HCP_NAMESPACE="models"
+HCP_ENDPOINT="https://s3.hcp.example.com"
+HCP_ACCESS_KEY="<key>"
+HCP_SECRET_KEY="<secret>"
+HCP_REGION="us-east-1"
+HCP_PREFIX="models/v1/"
+HCP_VERIFY_SSL="true"
+# HCP_ROOT_CA_PATH="/etc/ssl/certs/hcp-ca.pem"   # falls Self-Signed
+# HCP_STORE_AS_ARCHIVE="true"                     # oder false für Dateienbaum
+```
+
+### Nutzung
+
+- **Schnelltest Verbindung:**
+
+```bash
+python3 quick_s3_test.py
+```
+
+- **Modell in HCP cachen:**
+
+```bash
+scripts/run-s3cache.sh "${MODEL_ID}"
+```
+
+Das Script mappt `HCP_*` → `S3_*`, erstellt bei Bedarf eine venv und führt `cache_model.py` aus.
+
+### Hinweise für HCP
+
+- Es wird Signatur `s3v4` und Path-Style Addressing verwendet (empfohlen für HCP).
+- `use_ssl` wird automatisch aus dem Endpoint-Schema abgeleitet (`http://` → ohne SSL).
+- Bei Self-Signed TLS: `HCP_VERIFY_SSL=true` und `HCP_ROOT_CA_PATH` auf ein CA-Bundle setzen.
+
 ## Tipps & Tricks
 * **SSL Zertifikat:** Bei selbstsignierten HCP-Zertifikaten kann entweder `verify_ssl=False` gesetzt **oder** ein eigenes Root-CA-Bundle per Parameter `root_ca_path="/path/to/ca.pem"` übergeben werden.
 * **Versionierung:** Nutze den `s3_prefix`-Parameter, um verschiedene Modellversionen getrennt abzulegen, z. B. `models/v1/`.

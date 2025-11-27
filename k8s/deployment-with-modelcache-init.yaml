@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: my-inference
+  name: vllm-inference
   namespace: default
   labels:
     app: my-inference
@@ -17,7 +17,7 @@ spec:
     spec:
       initContainers:
         - name: model-cache-init
-          image: harbor.pietsch.uk/library/s3modelcache@sha256:4855ca7cec352b58e1a4a4db5ff8cb5bf58ff63815ea7a85ee862b03903bdd26
+          image: harbor.pietsch.uk/library/s3modelcache:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: MODEL_ID
@@ -70,12 +70,48 @@ spec:
             - name: model-cache
               mountPath: /cache
       containers:
-        - name: app
-          image: busybox
-          command:
-            - sleep
-            - "3600"
+        - name: vllm
+          image: 'registry.redhat.io/rhaiis/vllm-cuda-rhel9:latest'
           imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              nvidia.com/gpu: '2'
+            requests:
+              cpu: '8'
+              memory: 32Gi
+              nvidia.com/gpu: '2'
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              python3 -m vllm.entrypoints.openai.api_server ${VLLM_ARGS}
+          env:
+            - name: VLLM_ARGS
+              valueFrom:
+                configMapKeyRef:
+                  name: vllm-config
+                  key: vllm-args
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 60
+            timeoutSeconds: 1
+            periodSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 120
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
           volumeMounts:
             - name: model-cache
               mountPath: /cache

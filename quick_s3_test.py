@@ -26,8 +26,8 @@ def quick_s3_test():
     access_key = os.getenv("HCP_ACCESS_KEY") or os.getenv("S3_ACCESS_KEY_ID")
     secret_key = os.getenv("HCP_SECRET_KEY") or os.getenv("S3_SECRET_ACCESS_KEY")
     bucket = os.getenv("HCP_NAMESPACE") or os.getenv("S3_BUCKET")
-    verify_ssl = os.getenv("VERIFY_SSL", "true").lower() == "true"
-    root_ca_path = os.getenv("ROOT_CA_PATH")
+    verify_ssl = (os.getenv("HCP_VERIFY_SSL") or os.getenv("VERIFY_SSL", "true")).lower() == "true"
+    root_ca_path = os.getenv("HCP_ROOT_CA_PATH") or os.getenv("ROOT_CA_PATH")
     
     if not all([endpoint, access_key, secret_key, bucket]):
         print("❌ Missing configuration in .env file")
